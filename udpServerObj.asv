@@ -1,11 +1,11 @@
 classdef udpServerObj < handle
     %UDPSERVEROBJ Class for management of watchtower server
 
-    %  This object is running on the same instance of MATLAB as the
-    %  watchtower server.
+    %  This object is created in an instance of MATLAB running on the same
+    %  machine as the watchtower server.
 
-    %  Note that I am writing this for the versions of MATLAB
-    %  which use udpport for managing UDP ports (>= R2020b).
+    %  Note that this class is written for versions of MATLAB >= R202b,
+    %  which use udpport for managing UDP ports.
 
     %  With this class I need to
     %  1.  Get an API token for communication with watchtower server
@@ -20,15 +20,18 @@ classdef udpServerObj < handle
         watchtowerurl = 'https://localhost:4343'
         username = 'watchtower'
         password = 'watchtower'
+        datafolder = '/data/e3Vision/'
 
         apitoken        %  character vector
         filepath        %  character vector
         SerialGroup     %  string array
-        segment         %  character vector, segmen
+        segment         %  character vector, segment duration h m s
 
-        uByte
+        uByte       %  UDP byte port
         localhost = 'watchtower.local'
         localport = 9090
+
+        inputStringArray    %  array of strings corresponding to input data
     end
     
     methods
@@ -43,19 +46,18 @@ classdef udpServerObj < handle
                 end
             end
 
-            %  Get an API token from the watchtower server running on this
-            %  computer.
-            obj.login;
-
-            %  Connect to a UDP socket and create a udpport byte object
+            %  Connect to a UDP socket and create a udpport datagram object
             obj.uByte = udpport("byte","LocalPort",obj.localport,"LocalHost",obj.localhost);
 
-            %  Configure the terminator
+            %  Configure terminator
             configureTerminator(obj.uByte,"CR");
 
+            %  Configure callback 
+            configureCallback(obj.uByte,"terminator",@obj.readUDPdata);
         end
 
-        %  Login and get an api token
+
+        %  Login and get an api token            
         function obj = login(obj)
             try
                 loginresponse = webwrite(...
@@ -69,8 +71,8 @@ classdef udpServerObj < handle
             end
         end
 
-        %  Scan for cameras
-        function obj = scan(obj)
+        %  Scan for cameras and return camera names and IP addresses
+        function response = scan(obj)
             try
                 response = webread( ...
                     [obj.watchtowerurl, '/api/cameras/scan'], ...
@@ -82,10 +84,10 @@ classdef udpServerObj < handle
             end
         end
 
-        %  List cameras
-        function obj = list(obj)
+        %  Get camera state information
+        function response = getcamerastate(obj)
             try
-                response = webwrite( ...
+                response = webread( ...
                     [obj.watchtowerurl, '/api/cameras'], ...
                     'apitoken',obj.apitoken, ...
                     weboptions('CertificateFilename',''));
@@ -95,22 +97,16 @@ classdef udpServerObj < handle
             end
         end
 
-        %  Set global save path
-        function obj = savepath(obj)
-            try
-                response = webwrite([watchtowerurl, '/api/sessions/rename'], ...
-    'Filepath', 'D:\Videos\Concurrent4AC3D', weboptions('CertificateFilename',''));
-            catch ME
-                fprintf(ME.message);
-            end
-        end
-
         %  Start recording
-        function obj = startrecord(obj)
+        function obj = startrecording(obj)
             try
-                % Start simultaneous video recordings of cameras e3v8100 through e3v8103:
-                response = webwrite([watchtowerurl, '/api/cameras/action'], ...
-                    'SerialGroup[]', ["e3v8100", "e3v8101", "e3v8102", "e3v8103"], 'Action', 'RECORDGROUP', ...
+                % Start simultaneous video recordings of cameras in
+                % SerialGroup
+                webwrite( ...
+                    [obj.watchtowerurl, '/api/cameras/action'], ...
+                    'SerialGroup[]', obj.SerialGroup, ...
+                    'Action', 'RECORDGROUP', ...
+                    'apitoken', obj.apitoken, ...
                     weboptions('CertificateFilename','','ArrayFormat','repeating'));
             catch ME
                 fprintf(ME.message);
@@ -120,26 +116,67 @@ classdef udpServerObj < handle
         %  Stop recording
         function obj = stoprecording(obj)
             try
-                % Stop simultaneous video recordings of cameras e3v8100 through e3v8103:
-response = webwrite([watchtowerurl, '/api/cameras/action'], ...
-        'SerialGroup[]', ["e3v8100", "e3v8101", "e3v8102", "e3v8103"], 'Action', 'STOPRECORDGROUP', ...
-        weboptions('CertificateFilename','','ArrayFormat','repeating'));
+                % Stop simultaneous video recordings of cameras in
+                % SerialGroup
+                webwrite( ...
+                    [obj.watchtowerurl, '/api/cameras/action'], ...
+                    'SerialGroup[]', obj.SerialGroup, ...
+                    'Action', 'STOPRECORDGROUP', ...
+                    'apitoken', obj.apitoken, ...
+                    weboptions('CertificateFilename','','ArrayFormat','repeating'));
+            catch ME
+                fprintf(ME.message);
+            end
+        end
+
+        %  Set global save path
+        function obj = setsavepath(obj)
+            try
+                webwrite( ...
+                    [obj.watchtowerurl, '/api/sessions/rename'], ...
+                    'Filepath', fullfile(obj.datafolder,obj.filepath), ...
+                    'apitoken', obj.apitoken, ...
+                    weboptions('CertificateFilename',''));
             catch ME
                 fprintf(ME.message);
             end
         end
 
         %  Set segment duration
-        function obj = segmentduration(obj)
-            try 
-
-            response = webwrite([watchtowerurl, '/api/sessions/segment'], ...
-    'Segment', '30m, weboptions('CertificateFilename',''));
+        function obj = setsegmentduration(obj)
+            try
+                webwrite( ...
+                    [obj.watchtowerurl, '/api/sessions/segment'], ...
+                    'Segment', obj.segment, ...
+                    'apitoken', obj.apitoken, ...
+                    weboptions('CertificateFilename',''));
             catch ME
                 fprintf(ME.message);
             end
+        end
+   
+        %  Callback function
+        function obj = readUDPdata(obj,src,~)
+            obj.inputStringArray = split(readline(src));
+            obj.interpretInputStringArray;
+        end
 
+        function obj = interpretInputStringArray(obj)
+
+            switch obj.inputStringArray(1)
+                case "LOGIN"
+                    obj.login;
+                case "START"
+                    if(numel(obj.inputStringArray)>)
+                    obj.startrecording;
+                case "STOP"
+                    obj.stoprecording;
+                case "SerialGroup"
+                    obj.SerialGroup = obj.inputStringArray(2:end)';
+                case "segment"
+                    obj.segment = obj.inputStringArray(2);
+                    obj.setsegmentduration;
+            end
         end
     end
 end
-

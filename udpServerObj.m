@@ -1,11 +1,11 @@
 classdef udpServerObj < handle
     %UDPSERVEROBJ Class for management of watchtower server
 
-    %  This object is running on the same instance of MATLAB as the
-    %  watchtower server.
+    %  This object is created in an instance of MATLAB running on the same
+    %  machine as the watchtower server.
 
-    %  Note that I am writing this for the versions of MATLAB
-    %  which use udpport for managing UDP ports (>= R2020b).
+    %  Note that this class is written for versions of MATLAB >= R202b,
+    %  which use udpport for managing UDP ports.
 
     %  With this class I need to
     %  1.  Get an API token for communication with watchtower server
@@ -27,9 +27,11 @@ classdef udpServerObj < handle
         SerialGroup     %  string array
         segment         %  character vector, segment duration h m s
 
-        uDatagram       %  UDP datagram port
+        uByte       %  UDP byte port
         localhost = 'watchtower.local'
         localport = 9090
+
+        inputStringArray    %  array of strings corresponding to input data
     end
     
     methods
@@ -44,22 +46,18 @@ classdef udpServerObj < handle
                 end
             end
 
-            %  Get an API token from the watchtower server running on this
-            %  computer.
-            obj.login;
-
-            
             %  Connect to a UDP socket and create a udpport datagram object
-            obj.uDatagram = udpport("datagram","LocalPort",obj.localport,"LocalHost",obj.localhost);
-            obj.uDatagram.UserData = 0;
+            obj.uByte = udpport("byte","LocalPort",obj.localport,"LocalHost",obj.localhost);
 
-            %  Configure the terminator
-            %            configureTerminator(obj.uByte,"CR");
-            %configureCallback(obj.uDatagram,"datagram",2,@obj.readdatagram);
+            %  Configure terminator
+            configureTerminator(obj.uByte,"CR");
+
+            %  Configure callback 
+            configureCallback(obj.uByte,"terminator",@obj.readUDPdata);
         end
 
 
-        %  Login and get an api token
+        %  Login and get an api token            
         function obj = login(obj)
             try
                 loginresponse = webwrite(...
@@ -73,7 +71,7 @@ classdef udpServerObj < handle
             end
         end
 
-        %  Scan for cameras
+        %  Scan for cameras and return camera names and IP addresses
         function response = scan(obj)
             try
                 response = webread( ...
@@ -86,7 +84,7 @@ classdef udpServerObj < handle
             end
         end
 
-        %  Scan for cameras
+        %  Get camera state information
         function response = getcamerastate(obj)
             try
                 response = webread( ...
@@ -100,11 +98,15 @@ classdef udpServerObj < handle
         end
 
         %  Start recording
-        function obj = startrecord(obj)
+        function obj = startrecording(obj)
             try
-                % Start simultaneous video recordings of cameras e3v8100 through e3v8103:
-                response = webwrite([watchtowerurl, '/api/cameras/action'], ...
-                    'SerialGroup[]', ["e3v8100", "e3v8101", "e3v8102", "e3v8103"], 'Action', 'RECORDGROUP', ...
+                % Start simultaneous video recordings of cameras in
+                % SerialGroup
+                webwrite( ...
+                    [obj.watchtowerurl, '/api/cameras/action'], ...
+                    'SerialGroup[]', obj.SerialGroup, ...
+                    'Action', 'RECORDGROUP', ...
+                    'apitoken', obj.apitoken, ...
                     weboptions('CertificateFilename','','ArrayFormat','repeating'));
             catch ME
                 fprintf(ME.message);
@@ -114,10 +116,14 @@ classdef udpServerObj < handle
         %  Stop recording
         function obj = stoprecording(obj)
             try
-                % Stop simultaneous video recordings of cameras e3v8100 through e3v8103:
-response = webwrite([watchtowerurl, '/api/cameras/action'], ...
-        'SerialGroup[]', ["e3v8100", "e3v8101", "e3v8102", "e3v8103"], 'Action', 'STOPRECORDGROUP', ...
-        weboptions('CertificateFilename','','ArrayFormat','repeating'));
+                % Stop simultaneous video recordings of cameras in
+                % SerialGroup
+                webwrite( ...
+                    [obj.watchtowerurl, '/api/cameras/action'], ...
+                    'SerialGroup[]', obj.SerialGroup, ...
+                    'Action', 'STOPRECORDGROUP', ...
+                    'apitoken', obj.apitoken, ...
+                    weboptions('CertificateFilename','','ArrayFormat','repeating'));
             catch ME
                 fprintf(ME.message);
             end
@@ -148,16 +154,36 @@ response = webwrite([watchtowerurl, '/api/cameras/action'], ...
                 fprintf(ME.message);
             end
         end
-    end
+   
+        %  Callback function
+        function obj = readUDPdata(obj,src,~)
+            obj.inputStringArray = split(readline(src));
+            obj.interpretInputStringArray;
+        end
 
-    methods (Static)
-                %  Callback function
-        function data = readdatagram(src,~)
-            disp('hi lee')
-            src.UserData = src.UserData + 1;
-            disp("Callback Call Count: " + num2str(src.UserData))
-            data = read(src,1,"string");
-disp(data)
+        %  Interpret input string array possibly recursively.  If string is
+        %  not recognized then fail silently.  Clear input string array
+        %  when done.
+        function obj = interpretInputStringArray(obj)
+
+            switch obj.inputStringArray(1)
+                case "LOGIN"
+                    obj.login;
+                case "START"
+                    if(numel(obj.inputStringArray)>1)
+                        obj.inputStringArray = obj.inputStringArray(2:end);
+                        obj.interpretInputStringArray;
+                    end
+                    obj.startrecording;                    
+                case "STOP"
+                    obj.stoprecording;
+                case "SerialGroup"
+                    obj.SerialGroup = obj.inputStringArray(2:end)';
+                case "segment"
+                    obj.segment = obj.inputStringArray(2);
+                    obj.setsegmentduration;
+            end
+            obj.inputStringArray = [];
         end
     end
 end
