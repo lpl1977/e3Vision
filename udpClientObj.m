@@ -1,16 +1,23 @@
-classdef udpClientObj
-    %UDPCLIENTOBJ Summary of this class goes here
-    %   Detailed explanation goes here
+classdef udpClientObj < handle
+    %UDPCLIENTOBJ Class for client communicating with watchtower UDP server
+    %
+    %  This class is written for MATLAB R2019b and so uses now deprecated
+    %  functions to manage UDP socket.
     
     properties
-        Property1
+        
+        u
+        
+        remotehost = 'watchtower.local'
+        remoteport = 9090
     end
     
     methods
-        function obj = udpClientObj(inputArg1,inputArg2)
-            %UDPCLIENTOBJ Construct an instance of this class
-            %   Detailed explanation goes here
-            obj.Property1 = inputArg1 + inputArg2;
+        function obj = udpClientObj(varargin)
+            
+            obj.u = udp(obj.remotehost,obj.remoteport);
+            fopen(obj.u);
+            obj.u.Terminator = "CR";
         end
         
         function outputArg = method1(obj,inputArg)
