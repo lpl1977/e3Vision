@@ -1,4 +1,4 @@
-classdef udpClientObj < handle
+classdef udpClientObj
     %UDPCLIENTOBJ Class for client communicating with watchtower UDP server
     %
     %  This class is written for MATLAB R2019b and so uses now deprecated
@@ -20,11 +20,9 @@ classdef udpClientObj < handle
             obj.u.Terminator = "CR";
         end
         
-        function outputArg = method1(obj,inputArg)
-            %METHOD1 Summary of this method goes here
-            %   Detailed explanation goes here
-            outputArg = obj.Property1 + inputArg;
-        end
+        function sendstring(obj,stringtext)
+            fprintf(obj.u,stringtext);
+        end        
     end
 end
 
