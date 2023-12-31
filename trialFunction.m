@@ -102,13 +102,10 @@ switch state
         
     case p.trial.pldaps.trialStates.frameDraw
         
-        if(p.trial.(sn).enabled && p.static.e3v.recording)
-        if(p.trial.iFrame==0)
-            fprintf('WHAT\n');
-        end
+      %  if(p.static.e3v.recording)
             level = 0.25*cos(2*pi*4*p.static.display.ifi*(p.trial.iFrame-1)) + 0.75;
             Screen('FillRect', p.trial.display.ptr, [1 1 1]*level, p.trial.(sn).rect');
-        end
+     %   end
         
     case p.trial.pldaps.trialStates.experimentCleanUp
         
