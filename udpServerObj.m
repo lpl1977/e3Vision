@@ -7,6 +7,10 @@ classdef udpServerObj < handle
     %  Note that this class is written for versions of MATLAB >= R202b,
     %  which use udpport for managing UDP ports.
 
+    %  This class creates a UDP broadcast sender and receiver so that the
+    %  host name of the computer running the watchtower server can be
+    %  unknown to the client sending commands.
+
     %  With this class I need to
     %  1.  Get an API token for communication with watchtower server
     %  2.  Update path for saved files
@@ -27,9 +31,9 @@ classdef udpServerObj < handle
         SerialGroup     %  string array
         segment         %  character vector, segment duration h m s
 
-        uByte       %  UDP byte port
-        localhost = 'watchtower.local'
-        localport = 9090
+        uReceiver       %  UDP byte port broadcast receiver
+        localhost
+        localport = 31416
 
         inputStringArray    %  array of strings corresponding to input data
     end
@@ -46,14 +50,14 @@ classdef udpServerObj < handle
                 end
             end
 
-            %  Connect to a UDP socket and create a udpport datagram object
-            obj.uByte = udpport("byte","LocalPort",obj.localport,"LocalHost",obj.localhost);
+            %  Create a byte port receiver for broadcast commands
+            obj.uReceiver = udpport("byte","LocalPort",obj.localport);
 
             %  Configure terminator
-            configureTerminator(obj.uByte,"CR");
+            configureTerminator(obj.uReceiver,"CR");
 
             %  Configure callback 
-            configureCallback(obj.uByte,"terminator",@obj.readUDPdata);
+            configureCallback(obj.uReceiver,"terminator",@obj.readUDPdata);
         end
 
 

@@ -13,11 +13,13 @@ classdef udpClientObj
     end
     
     methods
-        function obj = udpClientObj(varargin)
-            
-            obj.u = udp(obj.remotehost,obj.remoteport);
-            fopen(obj.u);
-            obj.u.Terminator = "CR";
+        function obj = udpClientObj(varargin)            
+            try
+            catch
+                obj.u = udp(obj.remotehost,obj.remoteport);
+                fopen(obj.u);
+                obj.u.Terminator = "CR";
+            end
         end
         
         function sendstring(obj,stringtext)
