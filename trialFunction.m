@@ -110,7 +110,7 @@ switch state
     case p.trial.pldaps.trialStates.experimentCleanUp
         
         p.static.e3v.udpClient.sendstring("STOP");
-        p.static.e3v.udpClient.sendstring("UPLOAD");
+        %p.static.e3v.udpClient.sendstring("UPLOAD");
         p.static.e3v.recording = false;
         fprintf('****************************************************************\n');
         fprintf('e3Vision:  stop recording\n');
