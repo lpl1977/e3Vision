@@ -1,30 +1,29 @@
 classdef udpServerObj < handle
     %UDPSERVEROBJ Class for management of watchtower server
-
+    %
     %  This object is created in an instance of MATLAB running on the same
     %  machine as the watchtower server.
-
+    %
     %  Note that this class is written for versions of MATLAB >= R202b,
     %  which use udpport for managing UDP ports.
-
+    %
     %  This class creates a UDP broadcast sender and receiver so that the
     %  host name of the computer running the watchtower server can be
     %  unknown to the client sending commands.
-
-    %  With this class I need to
-    %  1.  Get an API token for communication with watchtower server
-    %  2.  Update path for saved files
-    %  3.  Start saving the files
-    %  4.  Stop saving the files
     %
-    %  I could configure more than one UDP port so that each one has a
-    %  unique callback.
+    %  Typical use:
+    %  1.  Create an instance of the class; this generates a UDP receiver
+    %  which will execute the commands defined in the callback based on the
+    %  input received.
+    %  2.  Obtain an API token
+    %  3.  Set the serial group
+    %  4.  Start / stop recording
     
     properties
         watchtowerurl = 'https://localhost:4343'
         username = 'watchtower'
         password = 'watchtower'
-        datafolder = '/data/e3Vision/'
+        datafolder = '/data/'
 
         apitoken        %  character vector
         filepath        %  character vector
@@ -36,6 +35,7 @@ classdef udpServerObj < handle
         localport = 31416
 
         inputStringArray    %  array of strings corresponding to input data
+        inputSourceAddress  %  address of input source
     end
     
     methods
@@ -70,6 +70,8 @@ classdef udpServerObj < handle
                     'password',obj.password, ...
                     weboptions('CertificateFilename',''));
                 obj.apitoken = loginresponse.apitoken;
+                fprintf('Log in from %s; obtained API token %s\n',...
+                    obj.inputSourceAddress,obj.apitoken);
             catch ME
                 fprintf(ME.message)
             end
@@ -160,13 +162,14 @@ classdef udpServerObj < handle
         end
    
         %  Callback function
-        function obj = readUDPdata(obj,src,~)
-            obj.inputStringArray = split(readline(src));
+        %  read UDP data and then interpret the input string
+        function obj = readUDPdata(obj,data,src)
+            obj.inputStringArray = split(readline(data));
+            obj.inputSourceAddress = src.Address;
             obj.interpretInputStringArray;
         end
 
-        %  Interpret input string array possibly recursively.  If string is
-        %  not recognized then fail silently.  Clear input string array
+        %  Interpret input string array.  Clear input string array
         %  when done.
         function obj = interpretInputStringArray(obj)
 
@@ -174,16 +177,15 @@ classdef udpServerObj < handle
                 case "LOGIN"
                     obj.login;
                 case "START"
-                    if(numel(obj.inputStringArray)>1)
-                        obj.inputStringArray = obj.inputStringArray(2:end);
-                        obj.interpretInputStringArray;
-                    end
                     obj.startrecording;                    
                 case "STOP"
                     obj.stoprecording;
                 case "SerialGroup"
                     obj.SerialGroup = obj.inputStringArray(2:end)';
-                case "segment"
+                case "Filepath"
+                    obj.filepath = obj.inputStringArray(2:end)';
+                    obj.setsavepath;
+                case "Segment"
                     obj.segment = obj.inputStringArray(2);
                     obj.setsegmentduration;
             end
