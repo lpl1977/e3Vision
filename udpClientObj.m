@@ -9,7 +9,7 @@ classdef udpClientObj
         u
 
         remotehost = 'leviathan.local'
-        remoteport = 9090
+        remoteport = 31416
     end
 
     methods
